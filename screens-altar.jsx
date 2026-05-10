@@ -276,122 +276,234 @@ function ObjectArt({ id, scale = 1 }) {
 
 // ───── isometric room ─────
 function IsoRoom({ vibe, placements, selectedZone, onZoneTap }) {
-  // vibe: 'mystic' | 'boho' | 'cosmic'
   const palette = {
-    mystic: { wallL: '#1f1844', wallR: '#15102e', floor: '#0a0618', accent: '#d4af37' },
-    boho:   { wallL: '#3a2a1c', wallR: '#2a1d12', floor: '#1c1208', accent: '#e8c98a' },
-    cosmic: { wallL: '#0a0c2e', wallR: '#050722', floor: '#020414', accent: '#9b7de0' },
+    mystic: {
+      wallL: '#1f1844', wallR: '#15102e', floor: '#0a0618', accent: '#d4af37',
+      floorHi: '#18143a', wallLHi: '#2a2060', ambientR: 'rgba(212,175,55,.06)', ambientL: 'rgba(160,120,220,.04)',
+    },
+    boho: {
+      wallL: '#3a2a1c', wallR: '#2a1d12', floor: '#1c1208', accent: '#e8c98a',
+      floorHi: '#2a1e12', wallLHi: '#4a3824', ambientR: 'rgba(232,201,138,.06)', ambientL: 'rgba(180,140,80,.04)',
+    },
+    cosmic: {
+      wallL: '#0a0c2e', wallR: '#050722', floor: '#020414', accent: '#9b7de0',
+      floorHi: '#0c0e30', wallLHi: '#12164a', ambientR: 'rgba(155,125,224,.06)', ambientL: 'rgba(100,80,200,.04)',
+    },
   }[vibe];
+
+  const sortedZones = [...ZONES].sort((a, b) => {
+    const depthA = a.kind === 'wall' ? -200 : (a.y + a.z);
+    const depthB = b.kind === 'wall' ? -200 : (b.y + b.z);
+    return depthA - depthB;
+  });
 
   return (
     <div style={{
-      position: 'relative', width: 320, height: 380, margin: '0 auto',
-      perspective: 900, perspectiveOrigin: '50% 35%',
+      position: 'relative', width: 320, height: 400, margin: '0 auto',
+      perspective: 800, perspectiveOrigin: '50% 32%',
     }}>
+      {/* room container */}
       <div style={{
-        position: 'absolute', left: '50%', top: '50%',
+        position: 'absolute', left: '50%', top: '48%',
         transformStyle: 'preserve-3d',
-        transform: 'translate(-50%, -50%) rotateX(50deg) rotateZ(-45deg)',
+        transform: 'translate(-50%, -50%) rotateX(52deg) rotateZ(-45deg)',
         width: 280, height: 280,
       }}>
         {/* floor */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: `linear-gradient(135deg, ${palette.floor}, ${palette.wallR})`,
-          boxShadow: `inset 0 0 80px rgba(0,0,0,.6)`,
+          background: `
+            radial-gradient(ellipse 80% 60% at 30% 30%, ${palette.floorHi}, transparent 70%),
+            linear-gradient(135deg, ${palette.floor}, ${palette.wallR})
+          `,
+          boxShadow: `inset 0 0 100px rgba(0,0,0,.7)`,
         }}>
-          {/* tile pattern */}
+          {/* tile grid */}
           <div style={{ position: 'absolute', inset: 0,
-            backgroundImage: `linear-gradient(${palette.accent}22 1px, transparent 1px), linear-gradient(90deg, ${palette.accent}22 1px, transparent 1px)`,
-            backgroundSize: '40px 40px', opacity: .4,
+            backgroundImage: `
+              linear-gradient(${palette.accent}18 1px, transparent 1px),
+              linear-gradient(90deg, ${palette.accent}18 1px, transparent 1px)
+            `,
+            backgroundSize: '40px 40px', opacity: .35,
+          }}/>
+          {/* floor reflection / wet-look sheen */}
+          <div style={{ position: 'absolute', inset: 0,
+            background: `linear-gradient(135deg, rgba(255,255,255,.03) 0%, transparent 40%, transparent 60%, rgba(255,255,255,.015) 100%)`,
           }}/>
           {/* central rune */}
-          <svg width="120" height="120" viewBox="0 0 100 100" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', opacity: .5 }}>
-            <circle cx="50" cy="50" r="40" fill="none" stroke={palette.accent} strokeWidth=".5"/>
-            <circle cx="50" cy="50" r="30" fill="none" stroke={palette.accent} strokeWidth=".4" strokeDasharray="2 3"/>
-            <polygon points="50,15 80,70 20,70" fill="none" stroke={palette.accent} strokeWidth=".5"/>
-            <polygon points="50,85 20,30 80,30" fill="none" stroke={palette.accent} strokeWidth=".5" opacity=".6"/>
-            <text x="50" y="54" textAnchor="middle" fill={palette.accent} fontSize="10" fontFamily="serif">✦</text>
+          <svg width="130" height="130" viewBox="0 0 100 100" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', opacity: .45 }}>
+            <circle cx="50" cy="50" r="42" fill="none" stroke={palette.accent} strokeWidth=".4"/>
+            <circle cx="50" cy="50" r="32" fill="none" stroke={palette.accent} strokeWidth=".3" strokeDasharray="2 4"/>
+            <circle cx="50" cy="50" r="22" fill="none" stroke={palette.accent} strokeWidth=".2" strokeDasharray="1 3"/>
+            <polygon points="50,12 82,72 18,72" fill="none" stroke={palette.accent} strokeWidth=".5"/>
+            <polygon points="50,88 18,28 82,28" fill="none" stroke={palette.accent} strokeWidth=".4" opacity=".5"/>
+            <text x="50" y="55" textAnchor="middle" fill={palette.accent} fontSize="10" fontFamily="serif" opacity=".8">✦</text>
           </svg>
         </div>
 
         {/* left wall */}
         <div style={{
-          position: 'absolute', left: 0, top: 0, width: 280, height: 200,
-          background: `linear-gradient(180deg, ${palette.wallL}, color-mix(in srgb, ${palette.wallL} 60%, #000))`,
+          position: 'absolute', left: 0, top: 0, width: 280, height: 220,
+          background: `
+            linear-gradient(180deg, ${palette.wallLHi} 0%, ${palette.wallL} 30%, color-mix(in srgb, ${palette.wallL} 50%, #000) 100%)
+          `,
           transform: 'rotateX(-90deg)', transformOrigin: 'top',
-          boxShadow: `inset 0 0 60px rgba(0,0,0,.5)`,
         }}>
-          {/* moulding */}
-          <div style={{ position: 'absolute', top: 14, left: 0, right: 0, height: 1, background: palette.accent, opacity: .3 }}/>
+          {/* light gradient from top-left */}
+          <div style={{ position: 'absolute', inset: 0,
+            background: `radial-gradient(ellipse 60% 40% at 50% 0%, rgba(255,255,255,.06), transparent 60%)`,
+          }}/>
+          {/* moulding lines */}
+          <div style={{ position: 'absolute', top: 12, left: 10, right: 10, height: 1, background: palette.accent, opacity: .25 }}/>
+          <div style={{ position: 'absolute', top: 15, left: 10, right: 10, height: 1, background: palette.accent, opacity: .12 }}/>
+          {/* ambient occlusion at floor junction */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 40,
+            background: 'linear-gradient(0deg, rgba(0,0,0,.5) 0%, transparent 100%)',
+          }}/>
         </div>
 
         {/* right wall */}
         <div style={{
-          position: 'absolute', left: 0, top: 0, width: 280, height: 200,
-          background: `linear-gradient(180deg, ${palette.wallR}, color-mix(in srgb, ${palette.wallR} 60%, #000))`,
+          position: 'absolute', left: 0, top: 0, width: 280, height: 220,
+          background: `
+            linear-gradient(180deg, ${palette.wallR} 0%, color-mix(in srgb, ${palette.wallR} 45%, #000) 100%)
+          `,
           transform: 'rotateY(90deg) rotateX(-90deg)', transformOrigin: 'top left',
-          boxShadow: `inset 0 0 60px rgba(0,0,0,.5)`,
         }}>
-          <div style={{ position: 'absolute', top: 14, left: 0, right: 0, height: 1, background: palette.accent, opacity: .3 }}/>
+          <div style={{ position: 'absolute', top: 12, left: 10, right: 10, height: 1, background: palette.accent, opacity: .2 }}/>
+          <div style={{ position: 'absolute', top: 15, left: 10, right: 10, height: 1, background: palette.accent, opacity: .08 }}/>
+          {/* ambient occlusion at floor junction */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 40,
+            background: 'linear-gradient(0deg, rgba(0,0,0,.5) 0%, transparent 100%)',
+          }}/>
         </div>
+
+        {/* corner shadow where walls meet */}
+        <div style={{
+          position: 'absolute', left: -2, top: -2, width: 8, height: 8,
+          background: 'radial-gradient(circle, rgba(0,0,0,.4), transparent)',
+          transform: 'translateZ(1px)',
+        }}/>
 
         {/* altar table */}
         <div style={{
-          position: 'absolute', left: 70, top: 70, width: 140, height: 90,
-          background: `linear-gradient(135deg, #5a4226, #3a2a1a)`,
-          transform: 'translateZ(40px)',
-          borderRadius: 4,
-          boxShadow: '0 10px 20px rgba(0,0,0,.6)',
+          position: 'absolute', left: 65, top: 65, width: 150, height: 100,
+          transformStyle: 'preserve-3d',
+          transform: 'translateZ(38px)',
         }}>
-          {/* table top — top face */}
+          {/* table shadow on floor */}
+          <div style={{
+            position: 'absolute', left: 10, right: 10, bottom: -42, height: 20,
+            background: 'radial-gradient(ellipse, rgba(0,0,0,.6) 0%, rgba(0,0,0,.2) 40%, transparent 70%)',
+            transform: 'translateZ(-38px)',
+            filter: 'blur(4px)',
+          }}/>
+          {/* table front face (visible edge) */}
+          <div style={{
+            position: 'absolute', left: 0, top: 0, width: 150, height: 8,
+            background: `linear-gradient(180deg, #6a4d2e, #3a2a1a)`,
+            transform: 'rotateX(-90deg)', transformOrigin: 'top',
+          }}/>
+          {/* table right face */}
+          <div style={{
+            position: 'absolute', right: 0, top: 0, width: 8, height: 100,
+            background: `linear-gradient(90deg, #5a4226, #2a1a10)`,
+            transform: 'rotateY(90deg)', transformOrigin: 'right',
+          }}/>
+          {/* table top */}
           <div style={{ position: 'absolute', inset: 0,
             background: `linear-gradient(135deg, #6a4d2e, #4a3520)`,
-            boxShadow: 'inset 0 0 20px rgba(0,0,0,.4)',
+            boxShadow: 'inset 0 0 30px rgba(0,0,0,.4), inset 0 -2px 4px rgba(0,0,0,.3)',
+            borderRadius: 2,
           }}>
-            {/* runic edge pattern */}
-            <div style={{ position: 'absolute', inset: 4, border: `1px solid ${palette.accent}`, opacity: .4, borderRadius: 2 }}/>
+            <div style={{ position: 'absolute', inset: 5, border: `1px solid ${palette.accent}`, opacity: .35, borderRadius: 2 }}/>
+            <div style={{ position: 'absolute', inset: 8, border: `1px solid ${palette.accent}`, opacity: .15, borderRadius: 1 }}/>
           </div>
-          {/* legs (suggested by shadow) */}
-          <div style={{ position: 'absolute', left: 4, bottom: -30, width: 4, height: 30, background: '#3a2a1a', transform: 'rotateX(-90deg)', transformOrigin: 'top' }}/>
-          <div style={{ position: 'absolute', right: 4, bottom: -30, width: 4, height: 30, background: '#3a2a1a', transform: 'rotateX(-90deg)', transformOrigin: 'top' }}/>
+          {/* legs — all four corners */}
+          {[[6, 6], [6, 88], [144, 6], [144, 88]].map(([lx, ly], i) => (
+            <div key={i} style={{
+              position: 'absolute', left: lx, top: ly, width: 5, height: 36,
+              background: `linear-gradient(90deg, #4a3520, #2a1a10)`,
+              transform: 'rotateX(-90deg)', transformOrigin: 'top',
+            }}/>
+          ))}
         </div>
       </div>
 
-      {/* — placement zones & objects, projected over the room — */}
+      {/* — object overlay with depth sorting — */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        {ZONES.map(z => {
+        {sortedZones.map(z => {
           const item = placements[z.id];
-          // simple iso projection: x_screen = x - z*0.5, y_screen = y + z*0.4 - height
           const sx = 160 + z.x;
-          const sy = 200 + z.y + z.z * 0.2;
+          const sy = 190 + z.y + z.z * 0.22;
+          const depthFactor = 1 - (z.z - 20) * 0.001;
+          const objScale = z.kind === 'wall' ? 0.85 : (z.kind === 'altar' ? 1.0 : depthFactor);
+          const isCandle = item?.startsWith('candle');
+          const isIncense = item?.startsWith('incense');
+          const shadowSkewX = z.kind === 'floor' ? 15 : 8;
+          const shadowOpacity = z.kind === 'floor' ? 0.55 : 0.35;
+
           return (
             <div key={z.id} style={{
-              position: 'absolute', left: sx, top: sy, transform: 'translate(-50%, -100%)',
+              position: 'absolute', left: sx, top: sy,
+              transform: `translate(-50%, -100%) scale(${objScale})`,
+              transformOrigin: 'bottom center',
               pointerEvents: 'auto',
+              zIndex: z.kind === 'wall' ? 1 : Math.round(sy),
             }}>
+              {/* ground contact shadow */}
+              {item && z.kind !== 'wall' && (
+                <div style={{
+                  position: 'absolute', bottom: -2, left: '50%',
+                  width: 50, height: 12,
+                  transform: `translate(-50%, 0) skewX(${shadowSkewX}deg)`,
+                  background: `radial-gradient(ellipse 100% 100%, rgba(0,0,0,${shadowOpacity}), transparent 70%)`,
+                  filter: 'blur(3px)',
+                  pointerEvents: 'none',
+                }}/>
+              )}
               {/* tap target */}
               <button onClick={() => onZoneTap(z)} style={{
                 position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
-                width: item ? 60 : 44, height: item ? 80 : 32,
+                width: item ? 65 : 44, height: item ? 85 : 32,
                 borderRadius: z.kind === 'wall' ? 4 : '50%',
                 border: selectedZone?.id === z.id ? `2px dashed ${palette.accent}` : '1px dashed transparent',
                 background: item ? 'transparent' : `${palette.accent}15`,
                 animation: item ? 'none' : 'zonePulse 2.4s ease-in-out infinite',
                 cursor: 'pointer',
+                zIndex: 10,
               }}/>
               {/* placed object */}
               {item && (
                 <div className="fade-up" style={{
                   position: 'relative',
-                  filter: `drop-shadow(0 6px 8px rgba(0,0,0,.5))`,
+                  filter: `drop-shadow(2px 8px 6px rgba(0,0,0,.55))`,
                 }}>
-                  <ObjectArt id={item} scale={z.kind === 'wall' ? 0.9 : 1}/>
+                  <ObjectArt id={item} scale={z.kind === 'wall' ? 0.85 : 1}/>
+                  {/* candle warm glow on surrounding surfaces */}
+                  {isCandle && (
+                    <div style={{
+                      position: 'absolute', left: '50%', top: '30%',
+                      width: 80, height: 80, transform: 'translate(-50%, -50%)',
+                      background: 'radial-gradient(circle, rgba(255,179,90,.2), transparent 60%)',
+                      pointerEvents: 'none', mixBlendMode: 'screen',
+                      animation: 'flameGlow 1.4s ease-in-out infinite',
+                    }}/>
+                  )}
+                  {/* incense smoke ambient */}
+                  {isIncense && (
+                    <div style={{
+                      position: 'absolute', left: '50%', top: 0,
+                      width: 40, height: 40, transform: 'translate(-50%, -60%)',
+                      background: 'radial-gradient(circle, rgba(200,190,220,.08), transparent 60%)',
+                      pointerEvents: 'none',
+                    }}/>
+                  )}
                 </div>
               )}
               {!item && <div style={{
                 position: 'absolute', left: '50%', top: '100%', transform: 'translate(-50%, 4px)',
-                fontSize: 9, color: palette.accent, opacity: .6,
+                fontSize: 9, color: palette.accent, opacity: .5,
                 fontFamily: 'var(--sans)', letterSpacing: '0.15em', textTransform: 'uppercase',
                 whiteSpace: 'nowrap', pointerEvents: 'none',
               }}>+</div>}
@@ -400,14 +512,22 @@ function IsoRoom({ vibe, placements, selectedZone, onZoneTap }) {
         })}
       </div>
 
-      {/* ambient glow if any candle/incense placed */}
+      {/* ambient lighting effects */}
       {Object.values(placements).some(id => id?.startsWith('candle')) && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse 60% 40% at 50% 60%, rgba(255,179,90,.15), transparent 70%)',
+          background: `
+            radial-gradient(ellipse 50% 35% at 50% 55%, rgba(255,179,90,.12), transparent 65%),
+            radial-gradient(ellipse 70% 50% at 50% 65%, rgba(255,140,50,.06), transparent 80%)
+          `,
           mixBlendMode: 'screen',
         }}/>
       )}
+      {/* vignette for depth */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse 65% 55% at 50% 45%, transparent 40%, rgba(0,0,0,.4) 100%)',
+      }}/>
     </div>
   );
 }
