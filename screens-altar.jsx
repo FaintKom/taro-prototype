@@ -38,16 +38,16 @@ const CATS = [
   { id: 'wall',    label: 'Wall' },
 ];
 
-// 8 placement zones — screen coords for SVG isometric diorama
+// 8 placement zones — 3D world coords projected to screen at render time
 const ZONES = [
-  { id: 'wall-l', kind: 'wall',  sx: 92,  sy: 148, label: 'wall · left' },
-  { id: 'wall-r', kind: 'wall',  sx: 228, sy: 148, label: 'wall · right' },
-  { id: 'altar-l',kind: 'altar', sx: 138, sy: 208, label: 'altar · left' },
-  { id: 'altar-c',kind: 'altar', sx: 160, sy: 198, label: 'altar · center' },
-  { id: 'altar-r',kind: 'altar', sx: 182, sy: 208, label: 'altar · right' },
-  { id: 'floor-l',kind: 'floor', sx: 108, sy: 270, label: 'floor · left' },
-  { id: 'floor-r',kind: 'floor', sx: 212, sy: 270, label: 'floor · right' },
-  { id: 'floor-f',kind: 'floor', sx: 160, sy: 290, label: 'floor · front' },
+  { id: 'wall-l', kind: 'wall',  wx: -3.8, wy: 3.8, wz: -1,   label: 'wall · left' },
+  { id: 'wall-r', kind: 'wall',  wx: 1.5,  wy: 3.8, wz: -3.8, label: 'wall · right' },
+  { id: 'altar-l',kind: 'altar', wx: 0.5,  wy: 1.2, wz: 0.3,  label: 'altar · left' },
+  { id: 'altar-c',kind: 'altar', wx: 1,    wy: 1.2, wz: 0.5,  label: 'altar · center' },
+  { id: 'altar-r',kind: 'altar', wx: 1.5,  wy: 1.2, wz: 0.7,  label: 'altar · right' },
+  { id: 'floor-l',kind: 'floor', wx: -2.5, wy: 0.2, wz: 2,    label: 'floor · left' },
+  { id: 'floor-r',kind: 'floor', wx: 3,    wy: 0.2, wz: 1.5,  label: 'floor · right' },
+  { id: 'floor-f',kind: 'floor', wx: 1,    wy: 0.2, wz: 2.8,  label: 'floor · front' },
 ];
 
 // ───── object renderers (CSS / SVG art) ─────
@@ -249,215 +249,109 @@ function ObjectArt({ id, scale = 1 }) {
   }
 }
 
-// ───── SVG isometric diorama room ─────
+// ───── Three.js voxel room ─────
+const ACCENT_MAP = { mystic: '#d4af37', boho: '#e8c98a', cosmic: '#9b7de0' };
+const WARM_MAP  = { mystic: '255,179,90', boho: '255,200,120', cosmic: '180,160,240' };
+
 function IsoRoom({ vibe, placements, selectedZone, onZoneTap }) {
-  const P = {
-    mystic: {
-      wallInL: '#3a2562', wallInR: '#2a1a4a',
-      wallOut: '#1a1035', wallTop: '#4a3078', wallCorner: '#5a3a8a',
-      floorSurf: '#8a6a3a', floorEdgeL: '#6a5028', floorEdgeR: '#5a4220',
-      plankHi: 'rgba(255,255,255,.06)', plankLo: 'rgba(0,0,0,.08)',
-      accent: '#d4af37',
-      rug: '#3a1848', rugBorder: '#d4af37',
-      tableTop: '#5a4226', tableSideL: '#4a3520', tableSideR: '#3a2a18',
-      cloth: '#2a1a4a', clothFringe: '#d4af37',
-      baseboard: '#2a1a3e', crown: '#4a3078',
-      shelfTop: '#5a4226', shelfFront: '#4a3520',
-      warm: [255, 179, 90],
-    },
-    boho: {
-      wallInL: '#6a503a', wallInR: '#5a4230',
-      wallOut: '#3a2818', wallTop: '#7a6048', wallCorner: '#8a6a50',
-      floorSurf: '#8a6a3a', floorEdgeL: '#6a5028', floorEdgeR: '#5a4220',
-      plankHi: 'rgba(255,255,255,.08)', plankLo: 'rgba(0,0,0,.06)',
-      accent: '#e8c98a',
-      rug: '#8a3828', rugBorder: '#e8c98a',
-      tableTop: '#5a4226', tableSideL: '#4a3520', tableSideR: '#3a2a18',
-      cloth: '#5a3828', clothFringe: '#e8c98a',
-      baseboard: '#4a3220', crown: '#7a6048',
-      shelfTop: '#5a4226', shelfFront: '#4a3520',
-      warm: [255, 200, 120],
-    },
-    cosmic: {
-      wallInL: '#1a2a5a', wallInR: '#121e4a',
-      wallOut: '#0a1230', wallTop: '#2a3a6a', wallCorner: '#3a4a7a',
-      floorSurf: '#8a6a3a', floorEdgeL: '#6a5028', floorEdgeR: '#5a4220',
-      plankHi: 'rgba(255,255,255,.06)', plankLo: 'rgba(0,0,0,.08)',
-      accent: '#9b7de0',
-      rug: '#1a1848', rugBorder: '#9b7de0',
-      tableTop: '#5a4226', tableSideL: '#4a3520', tableSideR: '#3a2a18',
-      cloth: '#1a1a4a', clothFringe: '#9b7de0',
-      baseboard: '#0a1230', crown: '#2a3a6a',
-      shelfTop: '#5a4226', shelfFront: '#4a3520',
-      warm: [180, 160, 240],
-    },
-  }[vibe];
+  const canvasRef = React.useRef(null);
+  const ctrlRef = React.useRef(null);
+  const [zp, setZp] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!canvasRef.current || ctrlRef.current) return;
+    const build = window.buildVoxelRoom;
+    if (!build) return;
+    const ctrl = build(canvasRef.current, 320, 360, vibe);
+    if (!ctrl) return;
+    ctrlRef.current = ctrl;
+    const positions = {};
+    ZONES.forEach(z => { positions[z.id] = ctrl.projectPoint(z.wx, z.wy, z.wz); });
+    setZp(positions);
+    return () => { ctrl.dispose(); ctrlRef.current = null; };
+  }, []);
+
+  React.useEffect(() => { ctrlRef.current?.setVibe(vibe); }, [vibe]);
+
+  const accent = ACCENT_MAP[vibe] || ACCENT_MAP.mystic;
+  const warm = WARM_MAP[vibe] || WARM_MAP.mystic;
 
   const sortedZones = [...ZONES].sort((a, b) => {
     if (a.kind === 'wall' && b.kind !== 'wall') return -1;
     if (b.kind === 'wall' && a.kind !== 'wall') return 1;
-    return a.sy - b.sy;
+    return ((zp && zp[a.id]?.sy) || 0) - ((zp && zp[b.id]?.sy) || 0);
   });
-
-  const hasCandle = Object.values(placements).some(id => id?.startsWith('candle'));
 
   return (
     <div style={{ position: 'relative', width: 320, height: 360, margin: '0 auto' }}>
-      <svg viewBox="0 0 320 360" width="320" height="360" style={{ display: 'block' }}>
-        <defs>
-          <filter id="iso-shadow"><feGaussianBlur stdDeviation="8"/></filter>
-          <pattern id="wood" x="0" y="0" width="24" height="6" patternUnits="userSpaceOnUse" patternTransform="skewX(20)">
-            <rect width="24" height="6" fill="transparent"/>
-            <line x1="0" y1="2" x2="24" y2="2" stroke={P.plankHi} strokeWidth=".5"/>
-            <line x1="0" y1="5" x2="24" y2="5" stroke={P.plankLo} strokeWidth=".3"/>
-          </pattern>
-          <radialGradient id="warm-glow" cx=".5" cy=".45" r=".5">
-            <stop offset="0" stopColor={`rgb(${P.warm.join(',')})`} stopOpacity=".12"/>
-            <stop offset="1" stopColor={`rgb(${P.warm.join(',')})`} stopOpacity="0"/>
-          </radialGradient>
-        </defs>
+      <canvas ref={canvasRef} style={{ display: 'block', width: 320, height: 360, borderRadius: 8 }} />
 
-        {/* drop shadow under room */}
-        <ellipse cx="160" cy="316" rx="110" ry="14" fill="rgba(0,0,0,.5)" filter="url(#iso-shadow)"/>
+      {zp && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {sortedZones.map(z => {
+            const pos = zp[z.id];
+            if (!pos) return null;
+            const item = placements[z.id];
+            const sc = z.kind === 'wall' ? .7 : z.kind === 'altar' ? .85 : .8;
+            const isCandle = item?.startsWith('candle');
+            const isIncense = item?.startsWith('incense');
+            return (
+              <div key={z.id} style={{
+                position: 'absolute', left: pos.sx, top: pos.sy,
+                transform: `translate(-50%, -100%) scale(${sc})`,
+                transformOrigin: 'bottom center',
+                pointerEvents: 'auto',
+                zIndex: z.kind === 'wall' ? 1 : Math.round(pos.sy),
+              }}>
+                <button onClick={() => onZoneTap(z)} style={{
+                  position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+                  width: item ? 60 : 40, height: item ? 80 : 28,
+                  borderRadius: z.kind === 'wall' ? 4 : '50%',
+                  border: selectedZone?.id === z.id ? `2px dashed ${accent}` : '1px dashed transparent',
+                  background: item ? 'transparent' : `${accent}15`,
+                  animation: item ? 'none' : 'zonePulse 2.4s ease-in-out infinite',
+                  cursor: 'pointer', zIndex: 10,
+                }}/>
+                {item && (
+                  <div className="fade-up" style={{
+                    position: 'relative',
+                    filter: 'drop-shadow(2px 5px 4px rgba(0,0,0,.55))',
+                  }}>
+                    <ObjectArt id={item} scale={z.kind === 'wall' ? .7 : .85}/>
+                    {isCandle && (
+                      <div style={{
+                        position: 'absolute', left: '50%', top: '25%',
+                        width: 70, height: 70, transform: 'translate(-50%, -50%)',
+                        background: `radial-gradient(circle, rgba(${warm}, .18), transparent 60%)`,
+                        pointerEvents: 'none', mixBlendMode: 'screen',
+                        animation: 'flameGlow 1.4s ease-in-out infinite',
+                      }}/>
+                    )}
+                    {isIncense && (
+                      <div style={{
+                        position: 'absolute', left: '50%', top: 0,
+                        width: 35, height: 35, transform: 'translate(-50%, -55%)',
+                        background: 'radial-gradient(circle, rgba(200,190,220,.07), transparent 60%)',
+                        pointerEvents: 'none',
+                      }}/>
+                    )}
+                  </div>
+                )}
+                {!item && <div style={{
+                  position: 'absolute', left: '50%', top: '100%', transform: 'translate(-50%, 4px)',
+                  fontSize: 9, color: accent, opacity: .5,
+                  fontFamily: 'var(--sans)', letterSpacing: '0.15em',
+                  whiteSpace: 'nowrap', pointerEvents: 'none',
+                }}>+</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        {/* ── WALL OUTER FACES (behind everything) ── */}
-        <polygon points="32,236 40,240 40,140 32,136" fill={P.wallOut}/>
-        <polygon points="288,236 280,240 280,140 288,136" fill={P.wallOut}/>
-
-        {/* ── WALL INTERIORS ── */}
-        <polygon points="40,240 160,180 160,80 40,140" fill={P.wallInL}/>
-        <polygon points="160,180 280,240 280,140 160,80" fill={P.wallInR}/>
-
-        {/* wall-floor ambient occlusion */}
-        <polygon points="40,240 160,180 160,190 40,250" fill="rgba(0,0,0,.2)"/>
-        <polygon points="160,180 280,240 280,250 160,190" fill="rgba(0,0,0,.15)"/>
-        <polygon points="158,180 162,180 162,82 158,82" fill="rgba(0,0,0,.18)"/>
-
-        {/* crown molding */}
-        <line x1="46" y1="147" x2="156" y2="92" stroke={P.crown} strokeWidth="1.5" opacity=".5"/>
-        <line x1="46" y1="150" x2="156" y2="95" stroke={P.accent} strokeWidth=".5" opacity=".3"/>
-        <line x1="164" y1="92" x2="274" y2="147" stroke={P.crown} strokeWidth="1.5" opacity=".5"/>
-        <line x1="164" y1="95" x2="274" y2="150" stroke={P.accent} strokeWidth=".5" opacity=".3"/>
-
-        {/* baseboard */}
-        <line x1="42" y1="238" x2="158" y2="179" stroke={P.baseboard} strokeWidth="2"/>
-        <line x1="162" y1="179" x2="278" y2="238" stroke={P.baseboard} strokeWidth="2"/>
-
-        {/* ── WALL TOP THICKNESS ── */}
-        <polygon points="160,80 40,140 32,136 152,76" fill={P.wallTop}/>
-        <polygon points="160,80 280,140 288,136 168,76" fill={P.wallTop}/>
-        <polygon points="160,72 168,76 160,80 152,76" fill={P.wallCorner}/>
-
-        {/* ── FLOOR SURFACE ── */}
-        <polygon points="160,180 280,240 160,300 40,240" fill={P.floorSurf}/>
-        <polygon points="160,180 280,240 160,300 40,240" fill="url(#wood)" opacity=".7"/>
-
-        {/* rug */}
-        <polygon points="160,222 196,240 160,258 124,240" fill={P.rug} opacity=".55"/>
-        <polygon points="160,222 196,240 160,258 124,240" fill="none" stroke={P.rugBorder} strokeWidth=".7" opacity=".35"/>
-        <polygon points="160,228 188,240 160,252 132,240" fill="none" stroke={P.rugBorder} strokeWidth=".4" opacity=".2"/>
-        <text x="160" y="243" textAnchor="middle" fill={P.rugBorder} fontSize="8" fontFamily="serif" opacity=".25">✦</text>
-
-        {/* ── FLOOR PLATFORM EDGES ── */}
-        <polygon points="40,240 160,300 160,310 40,250" fill={P.floorEdgeL}/>
-        <polygon points="280,240 160,300 160,310 280,250" fill={P.floorEdgeR}/>
-
-        {/* ── ALTAR TABLE ── */}
-        <polygon points="128,218 160,235 160,255 128,238" fill={P.tableSideL}/>
-        <polygon points="192,218 160,235 160,255 192,238" fill={P.tableSideR}/>
-        <polygon points="160,198 192,215 160,232 128,215" fill={P.tableTop}/>
-        <polygon points="160,198 192,215 160,232 128,215" fill="none" stroke={P.accent} strokeWidth=".5" opacity=".25"/>
-        {/* cloth drape */}
-        <path d="M142,207 L160,198 L178,207 L174,216 Q160,220 146,216 Z" fill={P.cloth} opacity=".65"/>
-        <line x1="142" y1="207" x2="146" y2="216" stroke={P.clothFringe} strokeWidth=".5" opacity=".4"/>
-        <line x1="178" y1="207" x2="174" y2="216" stroke={P.clothFringe} strokeWidth=".5" opacity=".4"/>
-
-        {/* ── WALL SHELF (left wall) ── */}
-        <polygon points="62,164 100,142 100,139 62,161" fill={P.shelfTop}/>
-        <polygon points="62,164 100,142 100,144 62,166" fill={P.shelfFront}/>
-        <line x1="66" y1="166" x2="66" y2="172" stroke={P.shelfFront} strokeWidth="1" opacity=".6"/>
-        <line x1="94" y1="148" x2="94" y2="154" stroke={P.shelfFront} strokeWidth="1" opacity=".6"/>
-
-        {/* candle warm light */}
-        {hasCandle && <ellipse cx="160" cy="215" rx="110" ry="65" fill="url(#warm-glow)"/>}
-      </svg>
-
-      {/* ── PLACED OBJECTS (HTML overlay) ── */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        {sortedZones.map(z => {
-          const item = placements[z.id];
-          const sc = z.kind === 'wall' ? .7 : z.kind === 'altar' ? .85 : .8;
-          const isCandle = item?.startsWith('candle');
-          const isIncense = item?.startsWith('incense');
-          return (
-            <div key={z.id} style={{
-              position: 'absolute', left: z.sx, top: z.sy,
-              transform: `translate(-50%, -100%) scale(${sc})`,
-              transformOrigin: 'bottom center',
-              pointerEvents: 'auto',
-              zIndex: z.kind === 'wall' ? 1 : Math.round(z.sy),
-            }}>
-              <button onClick={() => onZoneTap(z)} style={{
-                position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
-                width: item ? 60 : 40, height: item ? 80 : 28,
-                borderRadius: z.kind === 'wall' ? 4 : '50%',
-                border: selectedZone?.id === z.id ? `2px dashed ${P.accent}` : '1px dashed transparent',
-                background: item ? 'transparent' : `${P.accent}15`,
-                animation: item ? 'none' : 'zonePulse 2.4s ease-in-out infinite',
-                cursor: 'pointer', zIndex: 10,
-              }}/>
-              {item && (
-                <div className="fade-up" style={{
-                  position: 'relative',
-                  filter: 'drop-shadow(2px 5px 4px rgba(0,0,0,.55))',
-                }}>
-                  <ObjectArt id={item} scale={z.kind === 'wall' ? .7 : .85}/>
-                  {isCandle && (
-                    <div style={{
-                      position: 'absolute', left: '50%', top: '25%',
-                      width: 70, height: 70, transform: 'translate(-50%, -50%)',
-                      background: `radial-gradient(circle, rgba(${P.warm.join(',')}, .18), transparent 60%)`,
-                      pointerEvents: 'none', mixBlendMode: 'screen',
-                      animation: 'flameGlow 1.4s ease-in-out infinite',
-                    }}/>
-                  )}
-                  {isIncense && (
-                    <div style={{
-                      position: 'absolute', left: '50%', top: 0,
-                      width: 35, height: 35, transform: 'translate(-50%, -55%)',
-                      background: 'radial-gradient(circle, rgba(200,190,220,.07), transparent 60%)',
-                      pointerEvents: 'none',
-                    }}/>
-                  )}
-                </div>
-              )}
-              {!item && <div style={{
-                position: 'absolute', left: '50%', top: '100%', transform: 'translate(-50%, 4px)',
-                fontSize: 9, color: P.accent, opacity: .5,
-                fontFamily: 'var(--sans)', letterSpacing: '0.15em',
-                whiteSpace: 'nowrap', pointerEvents: 'none',
-              }}>+</div>}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* floating dust particles */}
-      {[...Array(5)].map((_, i) => (
-        <div key={i} style={{
-          position: 'absolute',
-          left: `${18 + i * 14}%`, top: `${28 + (i % 3) * 14}%`,
-          width: 2, height: 2, borderRadius: '50%',
-          background: `rgba(${P.warm.join(',')}, .35)`,
-          animation: `dustFloat ${3 + i * .7}s ease-in-out infinite ${i * .5}s`,
-          pointerEvents: 'none',
-        }}/>
-      ))}
-
-      {/* vignette */}
       <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse 60% 50% at 50% 45%, transparent 40%, rgba(0,0,0,.45) 100%)',
+        position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 8,
+        background: 'radial-gradient(ellipse 60% 50% at 50% 45%, transparent 40%, rgba(0,0,0,.35) 100%)',
       }}/>
     </div>
   );
