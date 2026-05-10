@@ -34,11 +34,53 @@ window.buildVoxelRoom = function(canvas, W, H, initialVibe) {
 
   // ─── Camera (fixed isometric) ───
   const aspect = W / H;
-  const d = 7;
-  const camera = new T.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 100);
-  camera.position.set(10, 10, 10);
-  camera.lookAt(0, 2, 0);
+  var zoom = 5.2;
+  var zoomMin = 3.5, zoomMax = 8;
+  const camera = new T.OrthographicCamera(-zoom * aspect, zoom * aspect, zoom, -zoom, 0.1, 100);
+  camera.position.set(10, 12, 10);
+  camera.lookAt(0, 1.8, 0);
   camera.updateProjectionMatrix();
+
+  function applyZoom() {
+    camera.left = -zoom * aspect;
+    camera.right = zoom * aspect;
+    camera.top = zoom;
+    camera.bottom = -zoom;
+    camera.updateProjectionMatrix();
+  }
+
+  // wheel zoom
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    zoom += e.deltaY * 0.005;
+    zoom = Math.max(zoomMin, Math.min(zoomMax, zoom));
+    applyZoom();
+  }, { passive: false });
+
+  // pinch zoom
+  var lastPinchDist = 0;
+  canvas.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 2) {
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (lastPinchDist > 0) {
+        zoom *= lastPinchDist / dist;
+        zoom = Math.max(zoomMin, Math.min(zoomMax, zoom));
+        applyZoom();
+      }
+      lastPinchDist = dist;
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchend', function() { lastPinchDist = 0; }, { passive: true });
 
   // ─── Scene ───
   const scene = new T.Scene();
