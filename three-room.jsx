@@ -527,7 +527,192 @@ window.buildVoxelRoom = function(canvas, W, H, initialVibe) {
     });
   }
 
-  return { setVibe, projectPoint, dispose };
+  // ─── Placeable item factories ───
+  const placedItems = {};
+
+  function mkItemCrystal(id) {
+    const g = new T.Group();
+    const colors = {
+      amethyst: { main: 0x9b6dd6, dark: 0x5a2c8a, emissive: 0x6a3d9a },
+      quartz:   { main: 0xf4f0e0, dark: 0xb8b0a0, emissive: 0xddddcc },
+      selenite: { main: 0xfefcf2, dark: 0xd8d2b8, emissive: 0xeeeedd },
+      obsidian: { main: 0x1a1a26, dark: 0x000000, emissive: 0x222233 },
+    };
+    const c = colors[id] || colors.amethyst;
+    const mat = new T.MeshStandardMaterial({ color: c.main, emissive: c.emissive, emissiveIntensity: .15, roughness: .3, metalness: .2 });
+    const matD = new T.MeshStandardMaterial({ color: c.dark, roughness: .4 });
+    // main crystal
+    const geo = new T.ConeGeometry(.12, .55, 5);
+    const m = new T.Mesh(geo, mat); m.position.set(0, .28, 0); m.castShadow = true; g.add(m);
+    // small shard
+    const s1 = new T.Mesh(new T.ConeGeometry(.06, .3, 4), mat);
+    s1.position.set(.1, .15, .05); s1.rotation.z = .3; s1.castShadow = true; g.add(s1);
+    const s2 = new T.Mesh(new T.ConeGeometry(.05, .25, 4), matD);
+    s2.position.set(-.08, .13, -.04); s2.rotation.z = -.25; s2.castShadow = true; g.add(s2);
+    // base
+    const base = box(.2, .06, .2, matD); base.position.set(0, .03, 0); g.add(base);
+    return g;
+  }
+
+  function mkItemCandle(id) {
+    const g = new T.Group();
+    const tall = id === 'candle-tall';
+    const h = tall ? .6 : .35;
+    const r = tall ? .06 : .1;
+    // holder
+    const holder = new T.Mesh(new T.CylinderGeometry(r + .04, r + .06, .08, 8), mGold);
+    holder.position.set(0, .04, 0); holder.castShadow = true; g.add(holder);
+    // wax
+    const body = new T.Mesh(new T.CylinderGeometry(r, r, h, 8), mCandle);
+    body.position.set(0, .08 + h / 2, 0); body.castShadow = true; g.add(body);
+    // flame
+    const fl = new T.Mesh(new T.ConeGeometry(.03, .1, 6), mFlame);
+    fl.position.set(0, .08 + h + .05, 0); fl.userData.isFlame = true; g.add(fl);
+    // glow
+    const glow = new T.PointLight(0xffaa44, .3, 2);
+    glow.position.set(0, .08 + h + .1, 0); g.add(glow);
+    return g;
+  }
+
+  function mkItemIncense(id) {
+    const g = new T.Group();
+    // tray
+    const tray = box(.35, .04, .1, mWoodD); tray.position.set(0, .02, 0); g.add(tray);
+    // stick
+    const stick = new T.Mesh(new T.CylinderGeometry(.012, .012, .45, 4), mIncense);
+    stick.position.set(.08, .2, 0); stick.rotation.z = -.25; stick.castShadow = true; g.add(stick);
+    // smoke puffs
+    for (var i = 0; i < 3; i++) {
+      var sp = new T.Mesh(new T.BoxGeometry(.03, .03, .03), mSmoke.clone());
+      sp.position.set(.08 + i * .03, .42 + i * .12, (Math.random() - .5) * .06);
+      sp.userData.isSmoke = true; sp.userData.baseY = sp.position.y; sp.userData.offset = i * .8;
+      g.add(sp); smokePs.push(sp);
+    }
+    return g;
+  }
+
+  function mkItemTarot() {
+    const g = new T.Group();
+    var cardMat = new T.MeshStandardMaterial({ color: 0x1a1040, roughness: .5 });
+    var cardBack = new T.MeshStandardMaterial({ color: 0x2a1850, roughness: .5 });
+    // 3 cards on stand
+    var stand = box(.5, .06, .3, mWoodD); stand.position.set(0, .03, 0); g.add(stand);
+    for (var i = -1; i <= 1; i++) {
+      var card = box(.12, .18, .01, i === 0 ? cardMat : cardBack);
+      card.position.set(i * .15, .15, 0);
+      card.rotation.z = i * .1;
+      card.castShadow = true; g.add(card);
+    }
+    // gold trim on center card
+    var trim = box(.13, .19, .005, mGold);
+    trim.position.set(0, .15, .008); g.add(trim);
+    return g;
+  }
+
+  function mkItemPlant(id) {
+    const g = new T.Group();
+    // pot
+    var pot = new T.Mesh(new T.CylinderGeometry(.1, .08, .18, 6), vm.pot);
+    pot.position.set(0, .09, 0); pot.castShadow = true; g.add(pot);
+    var rim = new T.Mesh(new T.CylinderGeometry(.11, .1, .03, 6), vm.pot);
+    rim.position.set(0, .19, 0); g.add(rim);
+    // foliage
+    var leafMat = new T.MeshStandardMaterial({ color: id === 'lavender' ? 0x7a6aaa : 0xd4c8a0, roughness: .7 });
+    var stemMat = new T.MeshStandardMaterial({ color: 0x4a7a3a, roughness: .8 });
+    for (var i = 0; i < 5; i++) {
+      var angle = (i / 5) * Math.PI * 2;
+      var stem = new T.Mesh(new T.CylinderGeometry(.01, .01, .25 + Math.random() * .15, 3), stemMat);
+      stem.position.set(Math.cos(angle) * .04, .3, Math.sin(angle) * .04);
+      stem.rotation.z = Math.cos(angle) * .3;
+      stem.rotation.x = Math.sin(angle) * .3;
+      g.add(stem);
+      var leaf = new T.Mesh(new T.SphereGeometry(.05, 4, 4), leafMat);
+      leaf.position.set(Math.cos(angle) * .08, .4 + Math.random() * .08, Math.sin(angle) * .08);
+      leaf.castShadow = true; g.add(leaf);
+    }
+    return g;
+  }
+
+  function mkItemOrb() {
+    const g = new T.Group();
+    // base
+    var base = new T.Mesh(new T.CylinderGeometry(.1, .12, .05, 8), mGold);
+    base.position.set(0, .025, 0); g.add(base);
+    var ring = new T.Mesh(new T.TorusGeometry(.1, .015, 8, 16), mGold);
+    ring.position.set(0, .08, 0); ring.rotation.x = Math.PI / 2; g.add(ring);
+    // sphere
+    var orb = new T.Mesh(new T.SphereGeometry(.1, 16, 16), mCrBall);
+    orb.position.set(0, .15, 0); orb.castShadow = true; g.add(orb);
+    return g;
+  }
+
+  function mkItemWall(id) {
+    const g = new T.Group();
+    if (id === 'moon-art') {
+      // frame
+      g.add(boxAt(.6, .5, .04, mWoodD, 0, 0, 0));
+      var inner = new T.MeshStandardMaterial({ color: 0x0a0a2a, roughness: .9 });
+      g.add(boxAt(.52, .42, .02, inner, 0, 0, .02));
+      // crescent moon
+      var moon = new T.Mesh(new T.TorusGeometry(.1, .03, 8, 16, Math.PI * 1.4), mGold);
+      moon.position.set(0, .05, .04); moon.rotation.z = .5; g.add(moon);
+    } else {
+      // star map frame
+      g.add(boxAt(.55, .55, .04, mWoodD, 0, 0, 0));
+      var bg = new T.MeshStandardMaterial({ color: 0x0e0e28, roughness: .9 });
+      g.add(boxAt(.47, .47, .02, bg, 0, 0, .02));
+      // stars as tiny cubes
+      for (var i = 0; i < 8; i++) {
+        var st = new T.Mesh(new T.BoxGeometry(.02, .02, .02),
+          new T.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffaa00, emissiveIntensity: .5 }));
+        st.position.set((Math.random() - .5) * .35, (Math.random() - .5) * .35, .04);
+        g.add(st);
+      }
+    }
+    return g;
+  }
+
+  function buildItem(itemId) {
+    if (itemId.startsWith('candle')) return mkItemCandle(itemId);
+    if (itemId.startsWith('incense')) return mkItemIncense(itemId);
+    if (itemId === 'tarot-stand') return mkItemTarot();
+    if (itemId === 'orb') return mkItemOrb();
+    if (itemId === 'moon-art' || itemId === 'star-map') return mkItemWall(itemId);
+    if (itemId === 'lavender' || itemId === 'pampas') return mkItemPlant(itemId);
+    return mkItemCrystal(itemId);
+  }
+
+  function placeItem(zoneId, itemId, wx, wy, wz, isWall) {
+    removeItem(zoneId);
+    var g = buildItem(itemId);
+    var sc = isWall ? 1.3 : 1.6;
+    g.scale.set(sc, sc, sc);
+    g.position.set(wx, wy, wz);
+    if (isWall) {
+      if (wx < 0) { g.rotation.y = Math.PI / 2; }
+    }
+    room.add(g);
+    placedItems[zoneId] = g;
+    // re-collect animatables
+    flames.length = 0; smokePs.length = 0;
+    scene.traverse(function(c) {
+      if (c.userData.isFlame) flames.push(c);
+      if (c.userData.isSmoke) smokePs.push(c);
+    });
+  }
+
+  function removeItem(zoneId) {
+    if (placedItems[zoneId]) {
+      room.remove(placedItems[zoneId]);
+      placedItems[zoneId].traverse(function(c) {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
+      delete placedItems[zoneId];
+    }
+  }
+
+  return { setVibe, projectPoint, placeItem, removeItem, dispose };
 };
 
 })();

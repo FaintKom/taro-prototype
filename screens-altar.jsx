@@ -38,16 +38,16 @@ const CATS = [
   { id: 'wall',    label: 'Wall' },
 ];
 
-// 8 placement zones — 3D world coords projected to screen at render time
+// 8 placement zones — 3D world coords matching room furniture positions
 const ZONES = [
-  { id: 'wall-l', kind: 'wall',  wx: -3.8, wy: 3.8, wz: -1,   label: 'wall · left' },
-  { id: 'wall-r', kind: 'wall',  wx: 1.5,  wy: 3.8, wz: -3.8, label: 'wall · right' },
-  { id: 'altar-l',kind: 'altar', wx: 0.5,  wy: 1.2, wz: 0.3,  label: 'altar · left' },
-  { id: 'altar-c',kind: 'altar', wx: 1,    wy: 1.2, wz: 0.5,  label: 'altar · center' },
-  { id: 'altar-r',kind: 'altar', wx: 1.5,  wy: 1.2, wz: 0.7,  label: 'altar · right' },
-  { id: 'floor-l',kind: 'floor', wx: -2.5, wy: 0.2, wz: 2,    label: 'floor · left' },
-  { id: 'floor-r',kind: 'floor', wx: 3,    wy: 0.2, wz: 1.5,  label: 'floor · right' },
-  { id: 'floor-f',kind: 'floor', wx: 1,    wy: 0.2, wz: 2.8,  label: 'floor · front' },
+  { id: 'wall-l', kind: 'wall',  wx: -2.35, wy: 3.5, wz: -1.5, label: 'wall · left' },
+  { id: 'wall-r', kind: 'wall',  wx: 0.5,   wy: 3.5, wz: -2.35, label: 'wall · right' },
+  { id: 'altar-l',kind: 'altar', wx: 0.2,   wy: 1.08, wz: 0.5, label: 'altar · left' },
+  { id: 'altar-c',kind: 'altar', wx: 1.0,   wy: 1.08, wz: 0.5, label: 'altar · center' },
+  { id: 'altar-r',kind: 'altar', wx: 1.8,   wy: 1.08, wz: 0.5, label: 'altar · right' },
+  { id: 'floor-l',kind: 'floor', wx: -1.5,  wy: 0.01, wz: 1.8, label: 'floor · left' },
+  { id: 'floor-r',kind: 'floor', wx: 2.8,   wy: 0.01, wz: 0.5, label: 'floor · right' },
+  { id: 'floor-f',kind: 'floor', wx: 1.8,   wy: 0.01, wz: 2.5, label: 'floor · front' },
 ];
 
 // ───── object renderers (CSS / SVG art) ─────
@@ -257,6 +257,7 @@ function IsoRoom({ vibe, placements, selectedZone, onZoneTap }) {
   const canvasRef = React.useRef(null);
   const ctrlRef = React.useRef(null);
   const [zp, setZp] = React.useState(null);
+  const prevPlacements = React.useRef({});
 
   React.useEffect(() => {
     if (!canvasRef.current || ctrlRef.current) return;
@@ -268,19 +269,33 @@ function IsoRoom({ vibe, placements, selectedZone, onZoneTap }) {
     const positions = {};
     ZONES.forEach(z => { positions[z.id] = ctrl.projectPoint(z.wx, z.wy, z.wz); });
     setZp(positions);
+    // place initial items
+    ZONES.forEach(z => {
+      if (placements[z.id]) ctrl.placeItem(z.id, placements[z.id], z.wx, z.wy, z.wz, z.kind === 'wall');
+    });
+    prevPlacements.current = { ...placements };
     return () => { ctrl.dispose(); ctrlRef.current = null; };
   }, []);
 
   React.useEffect(() => { ctrlRef.current?.setVibe(vibe); }, [vibe]);
 
-  const accent = ACCENT_MAP[vibe] || ACCENT_MAP.mystic;
-  const warm = WARM_MAP[vibe] || WARM_MAP.mystic;
+  // sync 3D placed items
+  React.useEffect(() => {
+    const ctrl = ctrlRef.current;
+    if (!ctrl) return;
+    const prev = prevPlacements.current;
+    ZONES.forEach(z => {
+      const cur = placements[z.id];
+      const old = prev[z.id];
+      if (cur !== old) {
+        if (cur) ctrl.placeItem(z.id, cur, z.wx, z.wy, z.wz, z.kind === 'wall');
+        else ctrl.removeItem(z.id);
+      }
+    });
+    prevPlacements.current = { ...placements };
+  }, [placements]);
 
-  const sortedZones = [...ZONES].sort((a, b) => {
-    if (a.kind === 'wall' && b.kind !== 'wall') return -1;
-    if (b.kind === 'wall' && a.kind !== 'wall') return 1;
-    return ((zp && zp[a.id]?.sy) || 0) - ((zp && zp[b.id]?.sy) || 0);
-  });
+  const accent = ACCENT_MAP[vibe] || ACCENT_MAP.mystic;
 
   return (
     <div style={{ position: 'relative', width: 320, height: 360, margin: '0 auto' }}>
@@ -288,62 +303,21 @@ function IsoRoom({ vibe, placements, selectedZone, onZoneTap }) {
 
       {zp && (
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          {sortedZones.map(z => {
+          {ZONES.map(z => {
             const pos = zp[z.id];
             if (!pos) return null;
             const item = placements[z.id];
-            const sc = z.kind === 'wall' ? .7 : z.kind === 'altar' ? .85 : .8;
-            const isCandle = item?.startsWith('candle');
-            const isIncense = item?.startsWith('incense');
             return (
-              <div key={z.id} style={{
+              <button key={z.id} onClick={() => onZoneTap(z)} style={{
                 position: 'absolute', left: pos.sx, top: pos.sy,
-                transform: `translate(-50%, -100%) scale(${sc})`,
-                transformOrigin: 'bottom center',
-                pointerEvents: 'auto',
-                zIndex: z.kind === 'wall' ? 1 : Math.round(pos.sy),
-              }}>
-                <button onClick={() => onZoneTap(z)} style={{
-                  position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
-                  width: item ? 60 : 40, height: item ? 80 : 28,
-                  borderRadius: z.kind === 'wall' ? 4 : '50%',
-                  border: selectedZone?.id === z.id ? `2px dashed ${accent}` : '1px dashed transparent',
-                  background: item ? 'transparent' : `${accent}15`,
-                  animation: item ? 'none' : 'zonePulse 2.4s ease-in-out infinite',
-                  cursor: 'pointer', zIndex: 10,
-                }}/>
-                {item && (
-                  <div className="fade-up" style={{
-                    position: 'relative',
-                    filter: 'drop-shadow(2px 5px 4px rgba(0,0,0,.55))',
-                  }}>
-                    <ObjectArt id={item} scale={z.kind === 'wall' ? .7 : .85}/>
-                    {isCandle && (
-                      <div style={{
-                        position: 'absolute', left: '50%', top: '25%',
-                        width: 70, height: 70, transform: 'translate(-50%, -50%)',
-                        background: `radial-gradient(circle, rgba(${warm}, .18), transparent 60%)`,
-                        pointerEvents: 'none', mixBlendMode: 'screen',
-                        animation: 'flameGlow 1.4s ease-in-out infinite',
-                      }}/>
-                    )}
-                    {isIncense && (
-                      <div style={{
-                        position: 'absolute', left: '50%', top: 0,
-                        width: 35, height: 35, transform: 'translate(-50%, -55%)',
-                        background: 'radial-gradient(circle, rgba(200,190,220,.07), transparent 60%)',
-                        pointerEvents: 'none',
-                      }}/>
-                    )}
-                  </div>
-                )}
-                {!item && <div style={{
-                  position: 'absolute', left: '50%', top: '100%', transform: 'translate(-50%, 4px)',
-                  fontSize: 9, color: accent, opacity: .5,
-                  fontFamily: 'var(--sans)', letterSpacing: '0.15em',
-                  whiteSpace: 'nowrap', pointerEvents: 'none',
-                }}>+</div>}
-              </div>
+                transform: 'translate(-50%, -50%)',
+                width: 40, height: 40, pointerEvents: 'auto',
+                borderRadius: z.kind === 'wall' ? 4 : '50%',
+                border: selectedZone?.id === z.id ? `2px dashed ${accent}` : '1px dashed transparent',
+                background: item ? 'transparent' : `${accent}15`,
+                animation: item ? 'none' : 'zonePulse 2.4s ease-in-out infinite',
+                cursor: 'pointer',
+              }}/>
             );
           })}
         </div>
